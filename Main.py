@@ -5,10 +5,17 @@ from binance.client import Client
 import requests
 import pandas as pd
 from datetime import datetime
+from datetime import date
+from datetime import timedelta
 import numpy as np
+import sys
+import timeit
 
 # %%
 # %%
+
+# calculate program run time
+start = timeit.default_timer() 
 
 # Binance
 api_key = os.environ.get('binance_api')
@@ -17,9 +24,22 @@ api_secret = os.environ.get('binance_secret')
 # Binance Client
 client = Client(api_key, api_secret)
 
-startdate = "200 day ago UTC"
-# startdate = "10 day ago UTC"
-timeframe = "1d"
+# Check the program has been called with the timeframe
+# total arguments
+n = len(sys.argv)
+# print("Total arguments passed:", n)
+if n < 2:
+    print("Argument is missing")
+    timeframe = input('Enter timeframe (1d, 8h, 4h):')
+    stablecoin = input('Enter stablecoin (USDT, BUSD):')
+else:
+    # argv[0] in Python is always the name of the script.
+    timeframe = sys.argv[1]
+    stablecoin = sys.argv[2]
+
+if timeframe == "1d": startdate = "200 day ago UTC"
+elif timeframe == "8h": startdate = str(8*200)+" hour ago UTC"
+elif timeframe == "4h": startdate = str(4*200)+" hour ago UTC"
 
 # %%
 tickers = client.get_ticker()
@@ -31,9 +51,9 @@ exchange_info = client.get_exchange_info()
 coinPairs = set()
 
 for s in exchange_info['symbols']:
-    if (s['symbol'].endswith('USDT')
-        and not(s['symbol'].endswith('DOWNUSDT'))
-        and not(s['symbol'].endswith('UPUSDT'))
+    if (s['symbol'].endswith(stablecoin)
+        and not(s['symbol'].endswith('DOWN'+stablecoin))
+        and not(s['symbol'].endswith('UP'+stablecoin))
         and not(s['symbol'].startswith('BUSD'))
         and s['status'] == 'TRADING'):
             coinPairs.add(s['symbol'])
@@ -113,6 +133,9 @@ values = ['recovery', 'accumulation', 'bullish', 'warning','distribution','beari
 dfResult['MarketPhase'] = np.select(conditions, values)
 # print(dfResult)
 
+currentDate = date.today().strftime('%Y%m%d')
+dfResult.to_csv("coinpairByMarketPhase_"+stablecoin+"_"+timeframe+"_"+currentDate+".csv")
+
 # %%
 dfRecovery = dfResult.query("MarketPhase == 'recovery'")
 print("\nCoins in Recovery Market Phase")
@@ -137,5 +160,21 @@ print(dfDistribution)
 dfBearish = dfResult.query("MarketPhase == 'bearish'")
 print("\nCoins in Bearish Market Phase")
 print(dfBearish)
+
+# # get yesterday results and merge 
+# # Yesterday date
+# yesterdayDate = date.today() - timedelta(days = 1)
+# # print("Yesterday was: ", yesterday.strftime('%Y%m%d'))
+# yesterdayDate = yesterdayDate.strftime('%Y%m%d')
+# dfResultYesterday = pd.read_csv("coinListByMarketPhases_"+stablecoin+"_"+timeframe+"_"+yesterdayDate+".csv")
+# # filter by accumulation and bullish
+# dfYesterdayAccumulation = dfResultYesterday.query("MarketPhase == 'accumulation'")
+# dfYesterdayBullish = dfResultYesterday.query("MarketPhase == 'bullish'")
+
+# pd.merge(dfBullish, dfYesterdayBullish, on="Coinpair", how="outer", indicator=True)
+
+stop = timeit.default_timer()
+print("END")
+print('Execution Time (s): ', stop - start) 
 
 
